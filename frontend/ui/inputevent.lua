@@ -399,6 +399,11 @@ function Input:waitEvent(timeout_us, timeout_s)
 	if ok and ev then
 		ev = self:eventAdjustHook(ev)
 		if ev.type == EV_KEY then
+			DEBUG("keycode: ", ev.code)
+			if ev.code == 116 then
+				os.execute("reboot")
+				return
+			end
 			local keycode = self.event_map[ev.code]
 			if not keycode then
 				-- do not handle keypress for keys we don't know

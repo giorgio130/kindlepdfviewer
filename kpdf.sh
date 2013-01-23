@@ -20,8 +20,11 @@ if test "$1" == "--framework_stop"; then
 	/etc/init.d/framework stop
 fi
 
-# stop cvm
-killall -stop cvm
+# stop nickel
+killall nickel
+
+#configure framebuffer
+./framebuffer_configure
 
 # finally call reader
 ./reader.lua "$1" 2> crash.log
@@ -33,3 +36,4 @@ fi
 
 # always try to continue cvm
 #killall -cont cvm || /etc/init.d/framework start
+reboot
