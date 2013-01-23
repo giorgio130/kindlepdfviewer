@@ -46,6 +46,7 @@ typedef struct FBInfo {
 	struct fb_fix_screeninfo finfo;
 #endif
 	struct fb_var_screeninfo vinfo;
+	size_t fb_size;
 } FBInfo;
 
 int luaopen_einkfb(lua_State *L);

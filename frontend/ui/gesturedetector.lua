@@ -68,6 +68,7 @@ GestureDetector = {
 
 function GestureDetector:feedEvent(ev) 
 	--DEBUG(ev.type, ev.code, ev.value, ev.time)
+	self.cur_ev.slot = 0
 	if ev.type == EV_SYN then
 		if ev.code == SYN_REPORT then
 			self.cur_ev.timev = TimeVal:new(ev.time)
@@ -81,10 +82,16 @@ function GestureDetector:feedEvent(ev)
 	elseif ev.type == EV_ABS then
 		if ev.code == ABS_MT_SLOT then
 			self.cur_ev.slot = ev.value
-		elseif ev.code == ABS_MT_TRACKING_ID then
-			self.cur_ev.id = ev.value
+		elseif ev.code == ABS_MT_PRESSURE and self.cur_ev.id == -1 then
+			if ev.value ~= 0 then
+				self.cur_ev.id = 1
+			end
+		elseif ev.code == ABS_MT_PRESSURE and self.cur_ev.id ~= -1 then
+			if ev.value == 0 then
+				self.cur_ev.id = -1
+			end
 		elseif ev.code == ABS_MT_POSITION_X then
-			self.cur_ev.x = ev.value
+			self.cur_ev.x = 758 - ev.value
 		elseif ev.code == ABS_MT_POSITION_Y then
 			self.cur_ev.y = ev.value
 		end

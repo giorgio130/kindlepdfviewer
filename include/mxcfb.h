@@ -100,7 +100,7 @@ struct mxcfb_rect {
 
 struct mxcfb_alt_buffer_data {
 	/* virt_addr is not included in amazon's source */
-	/* void *virt_addr; */
+	void *virt_addr;
 	__u32 phys_addr;
 	__u32 width;	/* width of entire buffer */
 	__u32 height;	/* height of entire buffer */
@@ -112,8 +112,8 @@ struct mxcfb_update_data {
 	__u32 waveform_mode;
 	__u32 update_mode;
 	__u32 update_marker;
-	__u32 hist_bw_waveform_mode;
-	__u32 hist_gray_waveform_mode;
+	//__u32 hist_bw_waveform_mode;
+	//__u32 hist_gray_waveform_mode;
 	int temp;
 	uint flags;
 	struct mxcfb_alt_buffer_data alt_buffer_data;
@@ -131,6 +131,7 @@ struct mxcfb_update_data_50x {
 	uint flags;
 	struct mxcfb_alt_buffer_data alt_buffer_data;
 };
+typedef struct mxcfb_update_data_50x mxcfb_update_data_50x;
 
 /*
  * Structure used to define waveform modes for driver

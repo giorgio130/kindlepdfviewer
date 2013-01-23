@@ -21,10 +21,10 @@ SYN_MT_REPORT = 2
 
 -- For multi-touch events (ABS.code).
 ABS_MT_SLOT = 47
-ABS_MT_POSITION_X = 53
-ABS_MT_POSITION_Y = 54
+ABS_MT_POSITION_X = 1
+ABS_MT_POSITION_Y = 0
 ABS_MT_TRACKING_ID = 57
-ABS_MT_PRESSURE = 58
+ABS_MT_PRESSURE = 24
 
 
 
@@ -250,17 +250,17 @@ function Input:init()
 		-- SDL key codes
 		self.event_map = self.sdl_event_map
 	else
-		input.open("fake_events")
+		--input.open("fake_events")
 		local dev_mod = Device:getModel()
-		if dev_mod ~= "KindleTouch" then
+		--if dev_mod ~= "KindleTouch" then
 			-- event0 in KindleTouch is "WM8962 Beep Generator" (useless)
-			input.open("/dev/input/event0")
-		end
-		if dev_mod ~= "KindleTouch" and dev_mod ~= "KindlePaperWhite" then
+			--input.open("/dev/input/event0")
+		--end
+		--if dev_mod ~= "KindleTouch" and dev_mod ~= "KindlePaperWhite" then
 			-- event1 in KindleTouch is "imx-yoshi Headset" (useless)
 			-- and we don't have event1 in KindlePaperWhite
-			input.open("/dev/input/event1")
-		end
+			--input.open("/dev/input/event1")
+		--end
 		if dev_mod == "KindlePaperWhite" then
 			print("Auto-detected Kindle PaperWhite")
 		elseif dev_mod == "KindleTouch" then
@@ -280,6 +280,26 @@ function Input:init()
 				return ev
 			end
 			print("Auto-detected Kindle Touch")
+		elseif dev_mod == "KoboGlo" then
+			input.open("/dev/input/event0") -- Light button and sleep slider
+			input.open("/dev/input/event1") -- touchscreen
+			-- update event hook
+			function Input:eventAdjustHook(ev)
+				if ev.type == EV_ABS then
+					--@TODO handle coordinates properly after
+					--screen rotate.    (houqp)
+					if ev.code == ABS_MT_POSITION_X then
+						ev.value = math.round(ev.value) -- * (758/4095))
+						print("event positionx")
+					elseif ev.code == ABS_MT_POSITION_Y then
+						ev.value = math.round(ev.value) -- * (1024/4095))
+						print("event positiony")
+					end
+				end
+				return ev
+			end
+			print("Auto-detected Kobo Glo")
+
 		elseif dev_mod == "Kindle4" then
 			print("Auto-detected Kindle 4")
 			self:adjustKindle4EventMap()
@@ -370,7 +390,7 @@ function Input:waitEvent(timeout_us, timeout_s)
 		elseif ev == "application forced to quit" then
 			os.exit(0)
 		end
-		--DEBUG("got error waiting for events:", ev)
+		DEBUG("got error waiting for events:", ev)
 		if ev ~= "Waiting for input failed: 4\n" then
 			-- we only abort if the error is not EINTR
 			break

@@ -62,12 +62,16 @@ inline void fb4BppTo8Bpp(FBInfo *fb) {
 	fb_buf = fb->real_buf->data;
 	/* h is 1024 for PaperWhite */
 	h = fb->buf->h;
+	printf("height: %d\n", h);
 	/* w is 758 for PaperWhite */
 	w = fb->buf->w;
+	printf("width: %d\n", w);
 	/* pitch is 384 for shadow buffer */
 	pitch = fb->buf->pitch;
+	printf("pitch: %d\n", pitch);
 	/* pitch is 768 for PaperWhite */
 	fb_pitch = fb->real_buf->pitch;
+	printf("fb_pitch: %d\n", fb_pitch);
 
 	/* copy bitmap from 4bpp shadow blitbuffer to framebuffer */
 	for (i = (h-1); i > 0; i--) {
@@ -104,8 +108,8 @@ inline void fillMxcfbUpdateData(mxcfb_update_data *myarea, FBInfo *fb, lua_State
 	myarea->update_region.height = luaL_optint(L, 6, fb->vinfo.yres);
 	myarea->waveform_mode = 257;
 	myarea->update_marker = 1;
-	myarea->hist_bw_waveform_mode = 0;
-	myarea->hist_gray_waveform_mode = 0;
+	//myarea->hist_bw_waveform_mode = 0;
+	//myarea->hist_gray_waveform_mode = 0;
 	myarea->temp = 0x1001;
 	/*@TODO make the flag configurable from UI,
 	 * this flag invert all the pixels on display  09.01 2013 (houqp)*/
@@ -120,11 +124,35 @@ inline void fillMxcfbUpdateData(mxcfb_update_data *myarea, FBInfo *fb, lua_State
 	myarea->alt_buffer_data.alt_update_region.height = 0;
 }
 
+inline void fillMxcfbUpdateData_50x(mxcfb_update_data_50x *myarea, FBInfo *fb, lua_State *L) {
+	myarea->update_mode = ((luaL_optint(L, 2, 0) == 0)? 1:0);
+	myarea->update_region.top = luaL_optint(L, 3, 0);
+	myarea->update_region.left = luaL_optint(L, 4, 0);
+	myarea->update_region.width = luaL_optint(L, 5, fb->vinfo.xres);
+	myarea->update_region.height = luaL_optint(L, 6, fb->vinfo.yres);
+	myarea->waveform_mode = 257;
+	myarea->update_marker = 1;
+	//myarea->hist_bw_waveform_mode = 0;
+	//myarea->hist_gray_waveform_mode = 0;
+	myarea->temp = 0x1001;
+	/*@TODO make the flag configurable from UI,
+	 * this flag invert all the pixels on display  09.01 2013 (houqp)*/
+	myarea->flags = 0;
+	myarea->alt_buffer_data.virt_addr = NULL;
+	myarea->alt_buffer_data.phys_addr = NULL;
+	myarea->alt_buffer_data.width = 0;
+	myarea->alt_buffer_data.height = 0;
+	myarea->alt_buffer_data.alt_update_region.top = 0;
+	myarea->alt_buffer_data.alt_update_region.left = 0;
+	myarea->alt_buffer_data.alt_update_region.width = 0;
+	myarea->alt_buffer_data.alt_update_region.height = 0;
+}
+
 void kindle3einkUpdate(FBInfo *fb, lua_State *L) {
 	update_area_t myarea;
 
 	fillUpdateAreaT(&myarea, fb, L);
-
+	printf("trying screen update 3\n");
 	ioctl(fb->fd, FBIO_EINK_UPDATE_DISPLAY_AREA, &myarea);
 }
 
@@ -133,7 +161,7 @@ void kindle4einkUpdate(FBInfo *fb, lua_State *L) {
 
 	fbInvert4BppTo8Bpp(fb);
 	fillUpdateAreaT(&myarea, fb, L);
-
+	printf("trying screen update 4\n");
 	ioctl(fb->fd, FBIO_EINK_UPDATE_DISPLAY_AREA, &myarea);
 }
 
@@ -143,7 +171,16 @@ void kindle51einkUpdate(FBInfo *fb, lua_State *L) {
 
 	fb4BppTo8Bpp(fb);
 	fillMxcfbUpdateData(&myarea, fb, L);
+	printf("trying screen update\n");
+	ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea);
+}
 
+void koboeinkUpdate(FBInfo *fb, lua_State *L) {
+	mxcfb_update_data_50x myarea;
+
+	fb4BppTo8Bpp(fb);
+	fillMxcfbUpdateData_50x(&myarea, fb, L);
+	printf("trying screen update for kobo\n");
 	ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea);
 }
 #endif	
@@ -184,10 +221,11 @@ static int openFrameBuffer(lua_State *L) {
 		return luaL_error(L, "video type %x not supported",
 				fb->finfo.type);
 	}
-
+	
+	printf("id: %s\n", fb->finfo.id);
 	if (strncmp(fb->finfo.id, "mxc_epdc_fb", 11) == 0) {
 		/* Kindle PaperWhite and KT with 5.1 or later firmware */
-		einkUpdateFunc = &kindle51einkUpdate;
+		einkUpdateFunc = &koboeinkUpdate;
 	} else if (strncmp(fb->finfo.id, "eink_fb", 7) == 0) {
 		if (fb->vinfo.bits_per_pixel == 8) {
 			/* kindle4 */
@@ -204,6 +242,17 @@ static int openFrameBuffer(lua_State *L) {
 	if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fb->vinfo)) {
 		return luaL_error(L, "cannot get variable screen info");
 	}
+	
+	// Configure for what we actually want
+	fb->vinfo.bits_per_pixel = 8;
+	fb->vinfo.grayscale = 1;
+	// 0 is landscape right handed, 3 is portrait
+	fb->vinfo.rotate = 3;
+	if (ioctl(fb->fd, FBIOPUT_VSCREENINFO, &fb->vinfo) == -1) {
+		return luaL_error(L, "error configuring framebuffer");
+	}
+	
+	printf(" %dx%d, %dbpp virtual %dx%d rotate%d\n", fb->vinfo.xres, fb->vinfo.yres, fb->vinfo.bits_per_pixel, fb->vinfo.xres_virtual, fb->vinfo.yres_virtual, fb->vinfo.rotate);
 
 	if (!fb->vinfo.grayscale) {
 		return luaL_error(L, "only grayscale is supported but framebuffer says it isn't");
@@ -213,9 +262,17 @@ static int openFrameBuffer(lua_State *L) {
 		return luaL_error(L, "invalid resolution %dx%d.\n",
 				fb->vinfo.xres, fb->vinfo.yres);
 	}
+	
+	// Figure out the size of the screen in bytes
+	fb->fb_size = (fb->vinfo.xres_virtual * fb->vinfo.yres_virtual * fb->vinfo.bits_per_pixel / 8);
+	printf("Actual size is: %d\n", fb->fb_size);
+	printf("expected size is: %d\n", fb->finfo.smem_len);
 
 	/* mmap the framebuffer */
+	/*it seems that fb->finfo.smem_len is not reliable on kobo
 	fb_map_address = mmap(0, fb->finfo.smem_len,
+			PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);*/
+	fb_map_address = mmap(0, fb->fb_size,
 			PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
 	if(fb_map_address == MAP_FAILED) {
 		return luaL_error(L, "cannot mmap framebuffer");
@@ -295,10 +352,10 @@ static int closeFrameBuffer(lua_State *L) {
 	if(fb->buf != NULL && fb->buf->data != NULL) {
 #ifndef EMULATE_READER
 		if (fb->vinfo.bits_per_pixel != 4) {
-			munmap(fb->real_buf->data, fb->finfo.smem_len);
+			munmap(fb->real_buf->data, fb->fb_size);
 			free(fb->buf->data);
 		} else {
-			munmap(fb->buf->data, fb->finfo.smem_len);
+			munmap(fb->buf->data, fb->fb_size);
 		}
 		close(fb->fd);
 #else
@@ -395,6 +452,7 @@ static int einkSetOrientation(lua_State *L) {
 		mode = 1;
 
 	ioctl(fb->fd, FBIO_EINK_SET_DISPLAY_ORIENTATION, mode);
+	printf("setting orientation\n");
 #else
 	if (mode == 0 || mode == 2) {
 		emu_w = EMULATE_READER_W;
@@ -414,6 +472,7 @@ static int einkGetOrientation(lua_State *L) {
 	FBInfo *fb = (FBInfo*) luaL_checkudata(L, 1, "einkfb");
 
 	ioctl(fb->fd, FBIO_EINK_GET_DISPLAY_ORIENTATION, &mode);
+	printf("getting orientation\n");
 
 	/* adjust ioctl's rotate mode definition to KPV's 
 	 * refer to screen.lua */
