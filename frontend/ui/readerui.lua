@@ -150,7 +150,7 @@ function ReaderUI:init()
 		}
 		table.insert(self, config_dialog)
 	end
-	--DEBUG(self.doc_settings)
+	DEBUG(self.doc_settings)
 	-- we only read settings after all the widgets are initialized
 	self:handleEvent(Event:new("ReadSettings", self.doc_settings))
 	-- notify childs of dimensions

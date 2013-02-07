@@ -197,7 +197,7 @@ Menu = FocusManager:new{
 	-- face for displaying item contents
 	cface = Font:getFace("cfont", 22),
 	-- face for menu title
-	tface = Font:getFace("tfont", 25),
+	tface = Font:getFace("tfont", 30),
 	-- face for paging info display
 	fface = Font:getFace("ffont", 16),
 	-- font for item shortcut

@@ -120,6 +120,15 @@ struct mxcfb_update_data {
 };
 typedef struct mxcfb_update_data mxcfb_update_data;
 
+struct mxcfb_alt_buffer_data_50x {
+	/* virt_addr is not included in amazon's source */
+	void *virt_addr;
+	__u32 phys_addr;
+	__u32 width;	/* width of entire buffer */
+	__u32 height;	/* height of entire buffer */
+	struct mxcfb_rect alt_update_region;	/* region within buffer to update */
+};
+
 /* this is only used in kindle firmware 5.0, later version (5.1) has changed
  * the struct to mxcfb_update_data (see above) */
 struct mxcfb_update_data_50x {
@@ -129,7 +138,7 @@ struct mxcfb_update_data_50x {
 	__u32 update_marker;
 	int temp;
 	uint flags;
-	struct mxcfb_alt_buffer_data alt_buffer_data;
+	struct mxcfb_alt_buffer_data_50x alt_buffer_data;
 };
 typedef struct mxcfb_update_data_50x mxcfb_update_data_50x;
 

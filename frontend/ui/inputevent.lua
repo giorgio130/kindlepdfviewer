@@ -147,6 +147,7 @@ Input = {
 		[109] = "RPgBack",
 		[114] = "VMinus",
 		[115] = "VPlus",
+		[116] = "Home", -- Kobo Glo
 		[122] = "Up", -- KDX
 		[123] = "Down", -- KDX
 		[124] = "RPgFwd", -- KDX
@@ -252,15 +253,15 @@ function Input:init()
 	else
 		--input.open("fake_events")
 		local dev_mod = Device:getModel()
-		--if dev_mod ~= "KindleTouch" then
+		if dev_mod ~= "KindleTouch" then
 			-- event0 in KindleTouch is "WM8962 Beep Generator" (useless)
 			--input.open("/dev/input/event0")
-		--end
-		--if dev_mod ~= "KindleTouch" and dev_mod ~= "KindlePaperWhite" then
+		end
+		if dev_mod ~= "KindleTouch" and dev_mod ~= "KindlePaperWhite" then
 			-- event1 in KindleTouch is "imx-yoshi Headset" (useless)
 			-- and we don't have event1 in KindlePaperWhite
-			--input.open("/dev/input/event1")
-		--end
+			input.open("/dev/input/event1")
+		end
 		if dev_mod == "KindlePaperWhite" then
 			print("Auto-detected Kindle PaperWhite")
 		elseif dev_mod == "KindleTouch" then
@@ -402,7 +403,6 @@ function Input:waitEvent(timeout_us, timeout_s)
 			DEBUG("keycode: ", ev.code)
 			if ev.code == 116 then
 				os.execute("reboot")
-				return
 			end
 			local keycode = self.event_map[ev.code]
 			if not keycode then

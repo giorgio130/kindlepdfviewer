@@ -41,7 +41,6 @@ function FileChooser:changeToPath(path)
 	for _, file in ipairs(files) do
 		table.insert(self.item_table, { text = file, path = self.path.."/"..file })
 	end
-
 	Menu.init(self) -- call parent's init()
 end
 

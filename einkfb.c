@@ -23,6 +23,7 @@
 
 #include "einkfb.h"
 
+
 #ifdef EMULATE_READER
 int emu_w = EMULATE_READER_W;
 int emu_h = EMULATE_READER_H;
@@ -85,6 +86,60 @@ inline void fb4BppTo8Bpp(FBInfo *fb) {
 			fb_buf[i*fb_pitch + j*2 + 1] &= 0x0F;
 			fb_buf[i*fb_pitch + j*2 + 1] |= shadow_buf[i*pitch + j]<<4 & 0xF0;
 			fb_buf[i*fb_pitch + j*2 + 1] = ~fb_buf[i*fb_pitch + j*2 + 1];
+		}
+	}
+}
+
+#define _RGB565(_r,_g,_b)	(unsigned short)((_r)<<11|(_g)<<6|(_b))
+
+inline void fb4BppTo16Bpp(FBInfo *fb) {
+	int i = 0, j = 0, h = 0, w = 0, pitch = 0, fb_pitch = 0;
+	uint8_t *shadow_buf = NULL;
+	uint16_t *fb_buf = NULL;
+	
+	unsigned short gwGray4toRGB565_TableA[] = {
+		_RGB565(0x00,0x00,0x00),
+		_RGB565(0x02,0x02,0x02),
+		_RGB565(0x04,0x04,0x04),
+		_RGB565(0x06,0x06,0x06),
+		_RGB565(0x08,0x08,0x08),
+		_RGB565(0x0a,0x0a,0x0a),
+		_RGB565(0x0c,0x0c,0x0c),
+		_RGB565(0x0e,0x0e,0x0e),
+		_RGB565(0x10,0x10,0x10),
+		_RGB565(0x12,0x12,0x12),
+		_RGB565(0x14,0x14,0x14),
+		_RGB565(0x16,0x16,0x16),
+		_RGB565(0x18,0x18,0x18),
+		_RGB565(0x1a,0x1a,0x1a),
+		_RGB565(0x1c,0x1c,0x1c),
+		_RGB565(0x1e,0x1e,0x1e),
+	};
+
+	shadow_buf = fb->buf->data;
+	fb_buf = fb->real_buf->data;
+	/* h is 1024 for PaperWhite */
+	h = fb->buf->h;
+	printf("height: %d\n", h);
+	/* w is 758 for PaperWhite */
+	w = fb->buf->w;
+	printf("width: %d\n", w);
+	/* pitch is 384 for shadow buffer */
+	pitch = fb->buf->pitch;
+	printf("pitch: %d\n", pitch);
+	/* pitch is 768 for PaperWhite */
+	fb_pitch = fb->real_buf->pitch;
+	printf("fb_pitch: %d\n", fb_pitch);
+
+	int iIdxDot1,iIdxDot2;
+	
+	/* copy bitmap from 4bpp shadow blitbuffer to framebuffer */
+	for (i = (h-1); i > 0; i--) {
+		for (j = (w-1)/2; j > 0; j--) {
+			iIdxDot1 = ((~shadow_buf[i*pitch + j])>>4)&0xf;
+			iIdxDot2 = (~shadow_buf[i*pitch + j])&0xf;
+			//fb_buf[i*fb_pitch + j*2 - 1] = gwGray4toRGB565_TableA[iIdxDot1];
+			//fb_buf[i*fb_pitch + j*2] = gwGray4toRGB565_TableA[iIdxDot2];
 		}
 	}
 }
@@ -167,21 +222,23 @@ void kindle4einkUpdate(FBInfo *fb, lua_State *L) {
 
 /* for kindle firmware with version >= 5.1, 5.0 is not supported for now */
 void kindle51einkUpdate(FBInfo *fb, lua_State *L) {
-	mxcfb_update_data myarea;
+	//mxcfb_update_data myarea;
 
 	fb4BppTo8Bpp(fb);
-	fillMxcfbUpdateData(&myarea, fb, L);
+	//fillMxcfbUpdateData(&myarea, fb, L);
 	printf("trying screen update\n");
-	ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea);
+	//ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea);
 }
 
 void koboeinkUpdate(FBInfo *fb, lua_State *L) {
-	mxcfb_update_data_50x myarea;
-
-	fb4BppTo8Bpp(fb);
-	fillMxcfbUpdateData_50x(&myarea, fb, L);
+	mxcfb_update_data_50x myarea50x;
+	if(fb->vinfo.bits_per_pixel == 8)
+		fb4BppTo8Bpp(fb);
+	if(fb->vinfo.bits_per_pixel == 16)
+		fb4BppTo16Bpp(fb);
+	fillMxcfbUpdateData_50x(&myarea50x, fb, L);
 	printf("trying screen update for kobo\n");
-	ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea);
+	ioctl(fb->fd, MXCFB_SEND_UPDATE, &myarea50x);
 }
 #endif	
 
@@ -189,7 +246,7 @@ static int openFrameBuffer(lua_State *L) {
 	const char *fb_device = luaL_checkstring(L, 1);
 	FBInfo *fb = (FBInfo*) lua_newuserdata(L, sizeof(FBInfo));
 	uint8_t *fb_map_address = NULL;
-
+	int fb_size;
 	luaL_getmetatable(L, "einkfb");
 
 	fb->buf = (BlitBuffer*) lua_newuserdata(L, sizeof(BlitBuffer));
@@ -243,15 +300,6 @@ static int openFrameBuffer(lua_State *L) {
 		return luaL_error(L, "cannot get variable screen info");
 	}
 	
-	// Configure for what we actually want
-	fb->vinfo.bits_per_pixel = 8;
-	fb->vinfo.grayscale = 1;
-	// 0 is landscape right handed, 3 is portrait
-	fb->vinfo.rotate = 3;
-	if (ioctl(fb->fd, FBIOPUT_VSCREENINFO, &fb->vinfo) == -1) {
-		return luaL_error(L, "error configuring framebuffer");
-	}
-	
 	printf(" %dx%d, %dbpp virtual %dx%d rotate%d\n", fb->vinfo.xres, fb->vinfo.yres, fb->vinfo.bits_per_pixel, fb->vinfo.xres_virtual, fb->vinfo.yres_virtual, fb->vinfo.rotate);
 
 	if (!fb->vinfo.grayscale) {
@@ -264,21 +312,21 @@ static int openFrameBuffer(lua_State *L) {
 	}
 	
 	// Figure out the size of the screen in bytes
-	fb->fb_size = (fb->vinfo.xres_virtual * fb->vinfo.yres_virtual * fb->vinfo.bits_per_pixel / 8);
-	printf("Actual size is: %d\n", fb->fb_size);
+	fb_size = (fb->vinfo.xres_virtual * fb->vinfo.yres_virtual * fb->vinfo.bits_per_pixel / 8);
+	printf("Actual size is: %d\n", fb_size);
 	printf("expected size is: %d\n", fb->finfo.smem_len);
 
 	/* mmap the framebuffer */
 	/*it seems that fb->finfo.smem_len is not reliable on kobo
 	fb_map_address = mmap(0, fb->finfo.smem_len,
 			PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);*/
-	fb_map_address = mmap(0, fb->fb_size,
+	fb_map_address = mmap(0, fb_size,
 			PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
 	if(fb_map_address == MAP_FAILED) {
 		return luaL_error(L, "cannot mmap framebuffer");
 	}
 	
-	if (fb->vinfo.bits_per_pixel == 8) {
+	if (fb->vinfo.bits_per_pixel != 4) {
 		/* for 8bpp K4, PaperWhite, we create a shadow 4bpp blitbuffer. These
 		 * models use 16 scale 8bpp framebuffer, so we still cheat it as 4bpp
 		 * */
